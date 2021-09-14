@@ -1,0 +1,39 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+---
+
+## Read in Packages
+```{r, message = FALSE}
+library(dplyr)
+library(tidyr)
+```
+
+## Data Sources
+Read in the data from [KNB](https://knb.ecoinformatics.org/knb/d1/mn/v2/object/df35b.302.1)
+```{r}
+# read in data
+catch_original <- read.csv("https://knb.ecoinformatics.org/knb/d1/mn/v2/object/df35b.302.1")
+```
+
+## Clean and Reshape Data
+
+* remove unnecessary columns
+* check column types
+* reshape data
+
+```{r}
+# remove cols
+catch_data <- catch_original %>%
+  select(-All, -notesRegCode)
+
+# spot change problem value
+catch_data$Chinook[catch_data$Chinook == "I"] <- 1
+catch_clean <- catch_data %>%
+mutate(Chinook = if_else(Chinook == "I", "1", Chinook)) %>%
+  mutate(Chinook = as.integer(Chinook))
+```
+
+## Join to Region Definitions
