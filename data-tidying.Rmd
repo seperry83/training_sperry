@@ -34,6 +34,80 @@ catch_data$Chinook[catch_data$Chinook == "I"] <- 1
 catch_clean <- catch_data %>%
 mutate(Chinook = if_else(Chinook == "I", "1", Chinook)) %>%
   mutate(Chinook = as.integer(Chinook))
+
+# reshape
+catch_long <- catch_clean %>% 
+  pivot_longer(cols = -c(Region, Year), names_to = "species", values_to = "catch")
+
+catch_wide <- catch_long %>% 
+  pivot_wider(names_from = species, values_from = catch)
+
+catch_long <- catch_long %>% 
+  rename(catch_thousands = catch)
+
+catch_long <- catch_long %>% 
+  mutate(catch = catch_thousands * 1000)
+
+catch_long <- catch_long %>% 
+  mutate(catch = catch_thousands * 1000) %>% 
+  select(-catch_thousands)
+
+mean_region <- catch_long %>% 
+  group_by(Region) %>%
+  summarise(catch_mean = mean(catch)) %>%
+  ungroup()
+
+mean_species_region <- catch_long %>% 
+  group_by(species,Region) %>%
+  summarise(catch_mean = mean(catch),
+            n = n()) %>%
+  ungroup()
+```
+
+```{r}
+mean_species_region
+```
+
+```{r}
+mean_region <- catch_clean %>%
+  group_by(Region) %>%
+  summarize(catch_mean = mean(catch))
+
+head(mean_region)
 ```
 
 ## Join to Region Definitions
+
+```{r}
+# read in, select specific data
+region_defs <- read.csv("https://knb.ecoinformatics.org/knb/d1/mn/v2/object/df35b.303.1") %>% 
+    select(code, mgmtArea)
+
+# rename cols
+region_defs <- region_defs %>% 
+  rename(Region = code, Region_Name = mgmtArea)
+
+# left join
+catch_joined <- left_join(catch_long, region_defs, by = c("Region"))
+```
+
+
+## Summary
+```{r}
+catch_original <- read.csv(url("https://knb.ecoinformatics.org/knb/d1/mn/v2/object/df35b.302.1", method = "libcurl"))
+region_defs <- read.csv(url("https://knb.ecoinformatics.org/knb/d1/mn/v2/object/df35b.303.1", method = "libcurl")) %>% 
+    select(code, mgmtArea)
+
+mean_region <- catch_original %>%
+  select(-All, -notesRegCode) %>% 
+  mutate(Chinook = ifelse(Chinook == "I", 1, Chinook)) %>% 
+  mutate(Chinook = as.numeric(Chinook)) %>% 
+  pivot_longer(-c(Region, Year), names_to = "species", values_to = "catch") %>%
+  mutate(catch = catch*1000) %>% 
+  group_by(Region) %>% 
+  summarize(mean_catch = mean(catch)) %>% 
+  left_join(region_defs, by = c("Region" = "code"))
+
+head(mean_region)
+```
+
