@@ -1,0 +1,68 @@
+---
+title: '07-functions'
+output: html_notebook
+---
+
+# Functionis tutorial
+
+## Set up some test data
+
+```{r}
+air_temps <- c(212, 38.3, 70, 32)
+
+fahr_to_celsius <- function(fahr){
+  temp <- (fahr-32)*5/9
+  return(temp)
+}
+
+cel <- fahr_to_celsius(air_temps[1])
+cel
+```
+```{r}
+all_cel <- fahr_to_celsius(air_temps)
+all_cel[1]
+```
+```{r}
+cel_to_fahr <- function(cel){
+  temp <- (9*cel/5)+32
+  return(temp)
+}
+
+all_fahr <- cel_to_fahr(all_cel)
+all_fahr
+```
+```{r}
+convert_temps <- function(fahr){
+  cel <- (fahr-32)*5/9
+  kel <- cel+273.15
+  temps <- list(fahr=fahr,celsius=cel,kelvin=kel)
+  return(temps)
+}
+
+df_temps <- data.frame(convert_temps(seq(-100,100,10)))
+df_temps
+```
+
+```{r}
+plot_theme <- function(base_size = 9){
+  ggplot2::theme(
+    axis.ticks = ggplot2::element_blank(),
+    text = ggplot2::element_text(family='Helvetica', color='gray30', size=base_size)
+  )
+}
+
+library(ggplot2)
+ggplot(df_temps, mapping=aes(x=fahr, y=celsius, color=kelvin)) +
+  geom_point() +
+  plot_theme(10)
+```
+```{r}
+scatterplot <- function(df, point_size = 2, font_size=9) {
+  ggplot(df, mapping=aes(x=fahr, y=celsius, color=kelvin)) +
+    geom_point(size=point_size) +
+    plot_theme(font_size)
+}
+
+scatterplot(df_temps, point_size=3, font_size=16)
+```
+
