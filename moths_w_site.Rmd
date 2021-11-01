@@ -1,0 +1,95 @@
+```{r}
+library(rjags)
+library(mcmcplots)
+library(tidyverse)
+load.module('dic')
+
+# dataset
+moths <- data.frame(site = rep(1:7, each = 2),
+                    morph = rep(1:2, times = 7),
+                    distance = rep(c(0, 7.2, 24.1, 30.2, 36.4, 41.5, 51.2), each = 2),
+                    placed = rep(c(56, 80, 52, 60, 60, 84, 92), each = 2),
+                    removed = c(13, 14, 28, 20, 18, 22, 9, 16, 16, 23, 20, 40, 24, 39))
+
+# make data list
+datlist <- list(y = moths$removed,
+                x = moths$distance,
+                m = moths$morph-1, # to code as a dummy variable
+                s = moths$site,
+                n = moths$placed,
+                n_row = nrow(moths))
+
+
+# model
+mscript_txt <- "model{
+    for(i in 1:n_row){
+      y[i] ~ dbin(p[i],n[i])
+
+      # prior for p
+      logit(p[i]) <- beta_one + beta_two*x[i] + beta_three*m[i] + beta_four*m[i]*x[i] + eps[s[i]]
+    }
+    # priors for beta
+    beta_one ~ dnorm(0,1/(10^2)) # jags is tau, not sigma
+    beta_two ~ dnorm(0,1/(5^2))
+    beta_three ~ dnorm(0,1/(5^2))
+    beta_four ~ dnorm(0,1/(5^2))
+
+    for(s in 1:n_row){
+    # a normal dist for the error
+    eps ~ rnorm(0,1/(10^2))
+    }
+    
+    beta2_morph0 <- beta_two # light moths
+    beta2_morph1 <- beta_two+beta_four # dark moths
+  }"
+```
+
+```{r}
+# model
+jm <- jags.model(file = textConnection(mscript_txt),
+                 data = datlist,
+                 n.chains = 3)
+
+update(jm, 1000)
+
+jm_coda <- coda.samples(model = jm,
+                        variable.names = c('p',
+                                           'beta_one', 'beta_two','beta_three','beta_four',
+                                           'beta2_morph0','beta2_morph1'),
+                        n.iter = 3000)
+```
+```{r}
+traplot(jm_coda,
+         parms = c('p', 'beta_one', 'beta_two','beta_three','beta_four'))
+
+# will export as html
+mcmcplot(jm_coda, 
+         parms = c('beta_one','beta_two','beta_three','beta_four'))
+```
+
+```{r}
+jm_coda <- coda.samples(model = jm,
+                        variable.names = c('p',
+                                           'beta_one', 'beta_two','beta_three','beta_four',
+                                           'beta2_morph0','beta2_morph1'),
+                        n.iter = 3000*40,
+                        thin = 40)
+
+# will export as html
+mcmcplot(jm_coda, 
+         parms = c('beta_one','beta_two','beta_three','beta_four'))
+
+gelman.diag(jm_coda, multivariate = FALSE)
+```
+```{r}
+caterplot(jm_coda, parms = c('beta2_morph0','beta2_morph1','beta_four','beta_three'),
+          reorder = FALSE)
+
+# only morph2 (dark) had a significant effect w/ distance; makes sense, since as black moths are farther from smoke, they're less likely to be eaten, nom nom
+
+# beta_three to check dif b/w morphs, bc it includes only the morph dummy term
+```
+```{r}
+dic.samples(jm, n.iter = 3000)
+```
+

@@ -1,0 +1,122 @@
+```{r}
+library(rjags)
+library(mcmcplots)
+library(tidyverse)
+load.module('dic')
+
+# included snow fence example, ref for the order
+mscript_txt <- "model{
+    for(i in 1:N){
+      # start with the final, ie, likelihood (here, a poisson)
+      y[i] ~ dpois(theta[i]*x[i])
+
+      # prior for theta
+      theta[i] ~ dgamma(alpha, beta)
+    }
+    # estimate alpha and beta -- not indexed, not in for loop
+    alpha ~ dgamma(2,1)
+    beta ~ dexp(1)
+
+    # calculated popn mean and std
+    pmean <- alpha/beta
+    pstd <- sqrt(alpha/beta^2)
+  }"
+```
+
+```{r}
+# data
+sf <- data.frame (y = c(138, 91, 132, 123, 173, 124, 109, 154, 138, 134),
+                  x = c(72, 50, 55, 60, 78, 63, 54, 70, 80, 68))
+
+datlist <- list(y = sf$y,
+                x = sf$x,
+                N = nrow(sf))
+
+# initials
+# don't want all initials to be the same b/c want to see that dif initials converge to same place
+mean(sf$y/sf$x) # sample mean for initial (alpha/beta is mean in gamma)
+
+# 0.5, 5, 20 <- target values for priors
+# this might be old fashioned, and now machines choose the priors as opposed to manual specification -- check McElreath's book
+# regardless, this is a necessary step to ensure convergence isn't dependent on prior values
+inits_list <- list(list(alpha = 0.5, beta = 1),
+                   list(alpha = 5, beta = 1),
+                   list(alpha = 40, beta = 2))
+```
+
+```{r}
+# model
+jm <- jags.model(file = textConnection(mscript_txt),
+                 data = datlist,
+                 inits = inits_list,
+                 n.chains = 3)
+
+update(jm, 1000)
+
+jm_coda <- coda.samples(model = jm,
+                        variable.names = c('theta',
+                                           'alpha', 'beta',
+                                           'pmean','pstd'),
+                        n.iter = 3000)
+```
+```{r}
+# model diagnostics
+traplot(jm_coda,
+         parms = c('theta', 'alpha', 'beta'))
+
+# will export as html
+mcmcplot(jm_coda, 
+         parms = c('alpha','beta'))
+```
+```{r}
+# re-run w/ thinning by 20 -- chosen based on ACF of alpha/beta
+# still only want to save 20 things, so multiply by 20 for iter as well
+jm_coda_thin <- coda.samples(model = jm,
+                        variable.names = c('theta',
+                                           'alpha', 'beta',
+                                           'pmean_t','pstd'),
+                        n.iter = 3000*20,
+                        thin = 20)
+# model diagnostics
+traplot(jm_coda_thin,
+         parms = c('alpha', 'beta'))
+
+mcmcplot(jm_coda_thin, 
+         parms = c('alpha','beta'))
+
+nrow(jm_coda_thin[[1]])
+
+# rhat or gelman diagnostic
+# near 1 is converged (TODO: look into more)
+gelman.diag(jm_coda, multivariate = FALSE)
+```
+
+```{r}
+# catepillar plots
+caterplot(jm_coda_thin, parms = 'theta',
+          reorder = FALSE)
+
+caterplot(jm_coda_thin, parms = 'pmean',
+          reorder = FALSE)
+
+caterplot(jm_coda_thin, parms = 'pstd',
+          reorder = FALSE)
+
+# summarizing posterior
+summary(jm_coda_thin)[[1]]
+
+head(jm_coda_thin[[1]])
+
+broom.mixed::tidyMCMC(jm_coda_thin, conf.int = TRUE) %>%
+  filter(grepl('theta', term)) %>%
+  ggplot(aes(x = term, y = estimate)) +
+  geom_pointrange(aes(ymin = conf.low,
+                      ymax = conf.high))
+```
+```{r}
+# check effective # of params
+# penalty is the "effective number of params" (TODO: look into)
+# so, 10 params for 10 estimates (of theta)... a lot for IRL work
+dic.samples(jm, n.iter = 3000)
+```
+

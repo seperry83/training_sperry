@@ -1,0 +1,19 @@
+```{r}
+# generating priors
+library(rriskDistributions) # for estimating priors
+```
+
+```{r}
+# estimating fish size priors, based on our fun estimations (usually just use normal quantile bounds tho)
+# data would probs fit better to a log normal in this instance
+get.gamma.par(p = c(0.005, 0.025, 0.2, 0.8, 0.975, 0.995), q = c(0.001, 0.02, 0.1, 0.3, 4, 25), tot = 0.1, fit.weights = c(1/2, 1/2, 1, 1, 1/2, 1/2))
+
+# can also use fit.weights to specify how much weight to put to each
+
+# TODO: paper: translating form R to jags and back again
+```
+
+```{r}
+fit.perc(p = c(0.005, 0.025, 0.))
+```
+
